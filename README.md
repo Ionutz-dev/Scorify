@@ -87,7 +87,7 @@ The app is designed to work seamlessly in offline mode:
 ## Screenshots
 
 ### Main Games List Screen
-![Games List](screenshot-list.png)
+![Games List](screenshots/screenshot-list.png)
 
 ### Add/Edit Game Screen
-![Add Game](screenshot-add.png)
+![Add Game](screenshots/screenshot-add.png)
