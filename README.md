@@ -94,15 +94,6 @@ The app is designed to work seamlessly in offline mode:
 ## Screenshots
 
 <div align="center">
-
-### Main Games List Screen
-
-<img src="screenshots/screenshot-list.png" width="400" alt="Scorify - Games List">
-
-<br><br>
-
-### Add/Edit Game Screen
-
-<img src="screenshots/screenshot-add.png" width="400" alt="Scorify - Add Game">
-
+  <img src="screenshots/screenshot-list.png" width="400" alt="Games List" style="margin: 10px;">
+  <img src="screenshots/screenshot-add.png" width="400" alt="Add Game" style="margin: 10px;">
 </div>
