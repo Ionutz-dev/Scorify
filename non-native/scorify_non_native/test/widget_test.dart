@@ -7,24 +7,25 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:scorify_non_native/main.dart';
+import 'package:scorify_non_native/repositories/game_repository.dart';
+import 'package:scorify_non_native/viewmodels/game_list_viewmodel.dart';
+import 'package:scorify_non_native/viewmodels/add_edit_game_viewmodel.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('App smoke test', (WidgetTester tester) async {
+    // Create dependencies
+    final gameRepository = GameRepository();
+    final gameListViewModel = GameListViewModel(gameRepository: gameRepository);
+    final addEditGameViewModel = AddEditGameViewModel(gameRepository: gameRepository);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Build our app and trigger a frame
+    await tester.pumpWidget(MyApp(
+      gameListViewModel: gameListViewModel,
+      addEditGameViewModel: addEditGameViewModel,
+    ));
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify that the app builds without crashing
+    expect(find.text('My Games'), findsOneWidget);
   });
 }

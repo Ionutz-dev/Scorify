@@ -1,12 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../viewmodels/game_viewmodel.dart';
 import '../models/game.dart';
-import 'add_edit_game_screen.dart';
+import '../viewmodels/game_list_viewmodel.dart';
 
-class GameListScreen extends StatelessWidget {
-  const GameListScreen({Key? key}) : super(key: key);
+class GameListScreen extends StatefulWidget {
+  const GameListScreen({Key? key, required this.viewModel}) : super(key: key);
+
+  final GameListViewModel viewModel;
+
+  @override
+  State<GameListScreen> createState() => _GameListScreenState();
+}
+
+class _GameListScreenState extends State<GameListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    widget.viewModel.onLoadGames();
+  }
+
+  @override
+  void dispose() {
+    widget.viewModel.onDisposed();
+    super.dispose();
+  }
 
   void _deleteGame(BuildContext context, Game game) {
     showDialog(
@@ -23,8 +40,7 @@ class GameListScreen extends StatelessWidget {
             ),
             TextButton(
               onPressed: () {
-                Provider.of<GameViewModel>(context, listen: false)
-                    .deleteGame(game.id);
+                widget.viewModel.onDeleteGame(game.id);
                 Navigator.of(dialogContext).pop();
               },
               child: const Text('Delete', style: TextStyle(color: Colors.red)),
@@ -41,9 +57,9 @@ class GameListScreen extends StatelessWidget {
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         backgroundColor: const Color(0xFF37474F),
-        title: Column(
+        title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
+          children: [
             Text(
               'My Games',
               style: TextStyle(
@@ -62,9 +78,27 @@ class GameListScreen extends StatelessWidget {
           ],
         ),
       ),
-      body: Consumer<GameViewModel>(
-        builder: (context, viewModel, child) {
-          final games = viewModel.games;
+      body: ListenableBuilder(
+        listenable: widget.viewModel,
+        builder: (context, child) {
+          final state = widget.viewModel.gameListState;
+
+          if (state == null || state.isLoading) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          if (state.error != null) {
+            return Center(
+              child: Text(
+                'Error: ${state.error}',
+                style: const TextStyle(color: Colors.red),
+              ),
+            );
+          }
+
+          final games = state.games;
 
           if (games.isEmpty) {
             return const Center(
@@ -86,13 +120,9 @@ class GameListScreen extends StatelessWidget {
                 child: GameCard(
                   game: game,
                   onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            AddEditGameScreen(gameId: game.id),
-                      ),
-                    );
+                    await Navigator.of(context)
+                        .pushNamed('/edit', arguments: game.id);
+                    widget.viewModel.onRefresh();
                   },
                   onDelete: () => _deleteGame(context, game),
                 ),
@@ -103,12 +133,8 @@ class GameListScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const AddEditGameScreen(),
-            ),
-          );
+          await Navigator.of(context).pushNamed('/add');
+          widget.viewModel.onRefresh();
         },
         backgroundColor: const Color(0xFF26A69A),
         child: const Icon(Icons.add, color: Colors.white),
@@ -229,7 +255,6 @@ class GameCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  // VS
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
@@ -281,6 +306,7 @@ class GameCard extends StatelessWidget {
                   ),
                 ],
               ),
+              // Add notes section
               if (game.notes.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Container(
