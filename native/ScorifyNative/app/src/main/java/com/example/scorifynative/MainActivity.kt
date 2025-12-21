@@ -1,4 +1,4 @@
-    package com.example.scorifynative
+package com.example.scorifynative
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -12,7 +12,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -48,8 +47,15 @@ fun ScorifyApp() {
     ) {
         composable("gameList") {
             val games by viewModel.games.collectAsState()
+            val isLoading by viewModel.isLoading.collectAsState()
+            val errorMessage by viewModel.errorMessage.collectAsState()
+            val successMessage by viewModel.successMessage.collectAsState()
+
             GameListScreen(
                 games = games,
+                isLoading = isLoading,
+                errorMessage = errorMessage,
+                successMessage = successMessage,
                 onGameClick = { gameId ->
                     navController.navigate("editGame/$gameId")
                 },
@@ -58,6 +64,12 @@ fun ScorifyApp() {
                 },
                 onDeleteClick = { game ->
                     viewModel.deleteGame(game.id)
+                },
+                onErrorDismiss = {
+                    viewModel.clearErrorMessage()
+                },
+                onSuccessDismiss = {
+                    viewModel.clearSuccessMessage()
                 }
             )
         }

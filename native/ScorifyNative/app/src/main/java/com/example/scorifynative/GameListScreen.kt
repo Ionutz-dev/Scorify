@@ -22,14 +22,42 @@ import java.util.*
 @Composable
 fun GameListScreen(
     games: List<Game>,
+    isLoading: Boolean,
+    errorMessage: String?,
+    successMessage: String?,
     onGameClick: (Int) -> Unit,
     onAddClick: () -> Unit,
-    onDeleteClick: (Game) -> Unit
+    onDeleteClick: (Game) -> Unit,
+    onErrorDismiss: () -> Unit,
+    onSuccessDismiss: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var gameToDelete by remember { mutableStateOf<Game?>(null) }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
+            snackbarHostState.showSnackbar(
+                message = it,
+                duration = SnackbarDuration.Long
+            )
+            onErrorDismiss()
+        }
+    }
+
+    LaunchedEffect(successMessage) {
+        successMessage?.let {
+            snackbarHostState.showSnackbar(
+                message = it,
+                duration = SnackbarDuration.Short
+            )
+            onSuccessDismiss()
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -65,22 +93,59 @@ fun GameListScreen(
             }
         }
     ) { paddingValues ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(games, key = { it.id }) { game ->
-                GameCard(
-                    game = game,
-                    onClick = { onGameClick(game.id) },
-                    onDeleteClick = {
-                        gameToDelete = game
-                        showDeleteDialog = true
-                    }
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center),
+                    color = Color(0xFF26A69A)
                 )
+            }
+
+            if (!isLoading && games.isEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        "No games yet",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Tap the + button to add your first game",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+
+            if (!isLoading && games.isNotEmpty()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(games, key = { it.id }) { game ->
+                        GameCard(
+                            game = game,
+                            onClick = { onGameClick(game.id) },
+                            onDeleteClick = {
+                                gameToDelete = game
+                                showDeleteDialog = true
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -129,7 +194,6 @@ fun GameCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // Header row with sport type, status, and delete button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -181,13 +245,11 @@ fun GameCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Score section
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Home team
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.weight(1f)
@@ -205,7 +267,6 @@ fun GameCard(
                     )
                 }
 
-                // VS
                 Text(
                     text = "VS",
                     fontSize = 14.sp,
@@ -214,7 +275,6 @@ fun GameCard(
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
 
-                // Away team
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.weight(1f)
@@ -235,7 +295,6 @@ fun GameCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Location and date
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
