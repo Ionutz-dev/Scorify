@@ -45,7 +45,10 @@ class GameRepository(context: Context) {
                 GameContract.GameEntry.COLUMN_LOCATION,
                 GameContract.GameEntry.COLUMN_SPORT_TYPE,
                 GameContract.GameEntry.COLUMN_STATUS,
-                GameContract.GameEntry.COLUMN_NOTES
+                GameContract.GameEntry.COLUMN_NOTES,
+                GameContract.GameEntry.COLUMN_SERVER_ID,
+                GameContract.GameEntry.COLUMN_PENDING_SYNC,
+                GameContract.GameEntry.COLUMN_SYNC_OPERATION
             )
 
             val sortOrder = "${GameContract.GameEntry.COLUMN_DATE} DESC"
@@ -69,7 +72,7 @@ class GameRepository(context: Context) {
                 }
             }
 
-            Log.d(TAG, "Retrieved ${games.size} games from database")
+            Log.d(TAG, "Retrieved ${games.size} games from local database")
             Result.success(games)
 
         } catch (e: Exception) {
@@ -95,7 +98,10 @@ class GameRepository(context: Context) {
                 GameContract.GameEntry.COLUMN_LOCATION,
                 GameContract.GameEntry.COLUMN_SPORT_TYPE,
                 GameContract.GameEntry.COLUMN_STATUS,
-                GameContract.GameEntry.COLUMN_NOTES
+                GameContract.GameEntry.COLUMN_NOTES,
+                GameContract.GameEntry.COLUMN_SERVER_ID,
+                GameContract.GameEntry.COLUMN_PENDING_SYNC,
+                GameContract.GameEntry.COLUMN_SYNC_OPERATION
             )
 
             val selection = "${GameContract.GameEntry.COLUMN_ID} = ?"
@@ -141,7 +147,7 @@ class GameRepository(context: Context) {
                 Result.failure(Exception("Failed to insert game"))
             } else {
                 val insertedGame = game.copy(id = newRowId.toInt())
-                Log.d(TAG, "Inserted game with id $newRowId")
+                Log.d(TAG, "Inserted game with local id $newRowId")
                 Result.success(insertedGame)
             }
 
@@ -157,7 +163,6 @@ class GameRepository(context: Context) {
 
             val values = gameToContentValues(game)
 
-            // Which row to update, based on the ID
             val selection = "${GameContract.GameEntry.COLUMN_ID} = ?"
             val selectionArgs = arrayOf(game.id.toString())
 
@@ -169,7 +174,7 @@ class GameRepository(context: Context) {
             )
 
             if (count > 0) {
-                Log.d(TAG, "Updated game with id ${game.id}")
+                Log.d(TAG, "Updated game with local id ${game.id}")
                 Result.success(true)
             } else {
                 Log.e(TAG, "Error updating game - no rows affected")
@@ -196,7 +201,7 @@ class GameRepository(context: Context) {
             )
 
             if (deletedRows > 0) {
-                Log.d(TAG, "Deleted game with id $id")
+                Log.d(TAG, "Deleted game with local id $id")
                 Result.success(true)
             } else {
                 Log.e(TAG, "Error deleting game - no rows affected")
@@ -205,6 +210,139 @@ class GameRepository(context: Context) {
 
         } catch (e: Exception) {
             Log.e(TAG, "Error deleting game with id $id", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Update the server ID for a game after successful sync
+     */
+    suspend fun updateGameServerId(localId: Int, serverId: Int): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val db: SQLiteDatabase = dbHelper.writableDatabase
+
+            val values = ContentValues().apply {
+                put(GameContract.GameEntry.COLUMN_SERVER_ID, serverId)
+                put(GameContract.GameEntry.COLUMN_PENDING_SYNC, 0)
+                put(GameContract.GameEntry.COLUMN_SYNC_OPERATION, null as String?)
+            }
+
+            val selection = "${GameContract.GameEntry.COLUMN_ID} = ?"
+            val selectionArgs = arrayOf(localId.toString())
+
+            val count = db.update(
+                GameContract.GameEntry.TABLE_NAME,
+                values,
+                selection,
+                selectionArgs
+            )
+
+            if (count > 0) {
+                Log.d(TAG, "Updated game $localId with server ID $serverId")
+                Result.success(true)
+            } else {
+                Log.e(TAG, "Failed to update server ID - game not found")
+                Result.failure(Exception("Game not found"))
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating server ID", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Find game by server ID
+     */
+    suspend fun getGameByServerId(serverId: Int): Result<Game?> = withContext(Dispatchers.IO) {
+        var cursor: Cursor? = null
+        try {
+            val db: SQLiteDatabase = dbHelper.readableDatabase
+
+            val projection = arrayOf(
+                GameContract.GameEntry.COLUMN_ID,
+                GameContract.GameEntry.COLUMN_HOME_TEAM,
+                GameContract.GameEntry.COLUMN_AWAY_TEAM,
+                GameContract.GameEntry.COLUMN_HOME_SCORE,
+                GameContract.GameEntry.COLUMN_AWAY_SCORE,
+                GameContract.GameEntry.COLUMN_DATE,
+                GameContract.GameEntry.COLUMN_LOCATION,
+                GameContract.GameEntry.COLUMN_SPORT_TYPE,
+                GameContract.GameEntry.COLUMN_STATUS,
+                GameContract.GameEntry.COLUMN_NOTES,
+                GameContract.GameEntry.COLUMN_SERVER_ID,
+                GameContract.GameEntry.COLUMN_PENDING_SYNC,
+                GameContract.GameEntry.COLUMN_SYNC_OPERATION
+            )
+
+            val selection = "${GameContract.GameEntry.COLUMN_SERVER_ID} = ?"
+            val selectionArgs = arrayOf(serverId.toString())
+
+            cursor = db.query(
+                GameContract.GameEntry.TABLE_NAME,
+                projection,
+                selection,
+                selectionArgs,
+                null,
+                null,
+                null
+            )
+
+            val game = if (cursor.moveToFirst()) {
+                cursorToGame(cursor)
+            } else {
+                null
+            }
+
+            Result.success(game)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error finding game by server ID $serverId", e)
+            Result.failure(e)
+        } finally {
+            cursor?.close()
+        }
+    }
+
+    /**
+     * Save or update games from server (used during initial fetch)
+     */
+    suspend fun saveGamesFromServer(serverGames: List<Game>): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val db: SQLiteDatabase = dbHelper.writableDatabase
+
+            db.beginTransaction()
+            try {
+                for (serverGame in serverGames) {
+                    // Check if game already exists by server ID
+                    val existingGame = getGameByServerId(serverGame.serverId!!).getOrNull()
+
+                    if (existingGame != null) {
+                        // Update existing game - preserve local ID, update with server data
+                        val updatedGame = serverGame.copy(
+                            id = existingGame.id,  // Keep the local ID
+                            pendingSync = false,
+                            syncOperation = null
+                        )
+                        updateGame(updatedGame)
+                        Log.d(TAG, "Updated existing game ${existingGame.id} with server data")
+                    } else {
+                        // Insert new game from server
+                        addGame(serverGame)
+                        Log.d(TAG, "Inserted new game from server with server ID ${serverGame.serverId}")
+                    }
+                }
+
+                db.setTransactionSuccessful()
+                Log.d(TAG, "Saved ${serverGames.size} games from server")
+                Result.success(true)
+
+            } finally {
+                db.endTransaction()
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving games from server", e)
             Result.failure(e)
         }
     }
@@ -220,6 +358,9 @@ class GameRepository(context: Context) {
         val sportTypeIndex = cursor.getColumnIndexOrThrow(GameContract.GameEntry.COLUMN_SPORT_TYPE)
         val statusIndex = cursor.getColumnIndexOrThrow(GameContract.GameEntry.COLUMN_STATUS)
         val notesIndex = cursor.getColumnIndexOrThrow(GameContract.GameEntry.COLUMN_NOTES)
+        val serverIdIndex = cursor.getColumnIndexOrThrow(GameContract.GameEntry.COLUMN_SERVER_ID)
+        val pendingSyncIndex = cursor.getColumnIndexOrThrow(GameContract.GameEntry.COLUMN_PENDING_SYNC)
+        val syncOperationIndex = cursor.getColumnIndexOrThrow(GameContract.GameEntry.COLUMN_SYNC_OPERATION)
 
         return Game(
             id = cursor.getInt(idIndex),
@@ -231,7 +372,10 @@ class GameRepository(context: Context) {
             location = cursor.getString(locationIndex),
             sportType = cursor.getString(sportTypeIndex),
             status = cursor.getString(statusIndex),
-            notes = cursor.getString(notesIndex) ?: ""
+            notes = cursor.getString(notesIndex) ?: "",
+            serverId = if (cursor.isNull(serverIdIndex)) null else cursor.getInt(serverIdIndex),
+            pendingSync = cursor.getInt(pendingSyncIndex) == 1,
+            syncOperation = cursor.getString(syncOperationIndex)
         )
     }
 
@@ -246,6 +390,9 @@ class GameRepository(context: Context) {
             put(GameContract.GameEntry.COLUMN_SPORT_TYPE, game.sportType)
             put(GameContract.GameEntry.COLUMN_STATUS, game.status)
             put(GameContract.GameEntry.COLUMN_NOTES, game.notes)
+            put(GameContract.GameEntry.COLUMN_SERVER_ID, game.serverId)
+            put(GameContract.GameEntry.COLUMN_PENDING_SYNC, if (game.pendingSync) 1 else 0)
+            put(GameContract.GameEntry.COLUMN_SYNC_OPERATION, game.syncOperation)
         }
     }
 

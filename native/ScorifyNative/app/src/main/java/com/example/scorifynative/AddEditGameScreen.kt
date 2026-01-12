@@ -366,18 +366,37 @@ fun AddEditGameScreen(
                         }
 
                         if (!hasError) {
-                            val newGame = Game(
-                                id = gameId ?: 0,
-                                homeTeam = homeTeam.trim(),
-                                awayTeam = awayTeam.trim(),
-                                homeScore = homeScoreInt!!,
-                                awayScore = awayScoreInt!!,
-                                date = selectedDate,
-                                location = location.trim(),
-                                sportType = sportType,
-                                status = status,
-                                notes = notes.trim()
-                            )
+                            val newGame = if (isEditMode && game != null) {
+                                // EDIT MODE: Preserve serverId and sync fields from original game
+                                game.copy(
+                                    homeTeam = homeTeam.trim(),
+                                    awayTeam = awayTeam.trim(),
+                                    homeScore = homeScoreInt!!,
+                                    awayScore = awayScoreInt!!,
+                                    date = selectedDate,
+                                    location = location.trim(),
+                                    sportType = sportType,
+                                    status = status,
+                                    notes = notes.trim()
+                                )
+                            } else {
+                                // ADD MODE: Create new game
+                                Game(
+                                    id = 0,
+                                    homeTeam = homeTeam.trim(),
+                                    awayTeam = awayTeam.trim(),
+                                    homeScore = homeScoreInt!!,
+                                    awayScore = awayScoreInt!!,
+                                    date = selectedDate,
+                                    location = location.trim(),
+                                    sportType = sportType,
+                                    status = status,
+                                    notes = notes.trim(),
+                                    serverId = null,
+                                    pendingSync = false,
+                                    syncOperation = null
+                                )
+                            }
 
                             if (isEditMode) {
                                 viewModel.updateGame(newGame)

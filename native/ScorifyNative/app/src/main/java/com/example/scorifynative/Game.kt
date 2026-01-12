@@ -12,5 +12,10 @@ data class Game(
     var location: String,
     var sportType: String,
     var status: String,
-    var notes: String = ""
+    var notes: String = "",
+
+    // Server synchronization fields
+    var serverId: Int? = null,              // ID from server (null if not synced yet)
+    var pendingSync: Boolean = false,       // True if waiting to sync with server
+    var syncOperation: String? = null       // "CREATE", "UPDATE", "DELETE", or null
 )

@@ -1,0 +1,17 @@
+{
+  "games": [
+    {
+      "id": 27,
+      "homeTeam": "Barcelona",
+      "awayTeam": "Real Madrid",
+      "homeScore": 4,
+      "awayScore": 0,
+      "date": 1768230315000,
+      "location": "Camp Nou",
+      "sportType": "Football",
+      "status": "Completed",
+      "notes": ""
+    }
+  ],
+  "nextId": 28
+}
